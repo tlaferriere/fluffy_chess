@@ -1,0 +1,11 @@
+[package]
+name = "fluffy_chess"
+version = "0.1.0"
+edition = "2021"
+authors = ["Thomas Laferriere <t.laferriere@protonmail.com>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bevy = "0.12.1"
+bevy_mod_picking = "0.17.0"
