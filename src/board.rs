@@ -1,4 +1,4 @@
-use crate::pieces::Piece;
+use crate::pieces::{Piece, PieceColor};
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
@@ -17,6 +17,14 @@ pub struct SelectedSquare {
 #[derive(Resource, Default, Debug)]
 pub(crate) struct SelectedPiece {
     pub entity: Option<Entity>,
+}
+
+#[derive(Resource)]
+pub(crate) struct PlayerTurn(pub(crate) PieceColor);
+impl Default for PlayerTurn {
+    fn default() -> Self {
+        Self(PieceColor::White)
+    }
 }
 
 const HIGHLIGHT_TINT: Highlight<StandardMaterial> = Highlight {
@@ -39,6 +47,7 @@ impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
+            .init_resource::<PlayerTurn>()
             .add_systems(Startup, create_board);
     }
 }
@@ -83,6 +92,7 @@ fn select(
     select: Listener<Pointer<Select>>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
+    mut turn: ResMut<PlayerTurn>,
     squares_query: Query<&Square>,
     mut pieces_query: Query<(Entity, &mut Piece)>,
 ) {
@@ -96,13 +106,14 @@ fn select(
             commands,
             &mut selected_square,
             &mut selected_piece,
+            &mut turn,
             &mut pieces_query,
             square,
             selected_piece_entity,
         );
     } else {
         selected_piece.entity = pieces_query.iter().find_map(|(entity, piece)| {
-            if piece.x == square.x && piece.y == square.y {
+            if piece.x == square.x && piece.y == square.y && piece.color == turn.0 {
                 Some(entity)
             } else {
                 None
@@ -115,6 +126,7 @@ pub fn move_to_square(
     mut commands: Commands,
     selected_square: &mut ResMut<SelectedSquare>,
     selected_piece: &mut ResMut<SelectedPiece>,
+    turn: &mut ResMut<PlayerTurn>,
     pieces_query: &mut Query<(Entity, &mut Piece)>,
     square: &Square,
     selected_piece_entity: Entity,
@@ -142,6 +154,11 @@ pub fn move_to_square(
             // Move piece
             piece.x = square.x;
             piece.y = square.y;
+
+            turn.0 = match turn.0 {
+                PieceColor::White => PieceColor::Black,
+                PieceColor::Black => PieceColor::White,
+            }
         }
     }
     selected_square.entity = None;

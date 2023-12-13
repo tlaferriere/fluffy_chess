@@ -1,4 +1,4 @@
-use crate::board::{move_to_square, SelectedPiece, SelectedSquare, Square};
+use crate::board::{move_to_square, PlayerTurn, SelectedPiece, SelectedSquare, Square};
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
@@ -213,16 +213,20 @@ fn select(
     listener: Listener<Pointer<Select>>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
+    mut turn: ResMut<PlayerTurn>,
     mut pieces_query: Query<(Entity, &mut Piece)>,
     squares_query: Query<&Square>,
 ) {
     match selected_piece.entity {
         None => {
-            selected_piece.entity = Some(listener.listener());
-            println!("Selected piece {selected_piece:?}");
+            if pieces_query
+                .get(listener.listener())
+                .is_ok_and(|(_, piece)| piece.color == turn.0)
+            {
+                selected_piece.entity = Some(listener.listener());
+            }
         }
         Some(selected_piece_entity) => {
-            println!("Moving piece {selected_piece:?}");
             let Ok((_, piece)) = pieces_query.get(listener.listener()) else {
                 return;
             };
@@ -236,11 +240,11 @@ fn select(
                 commands,
                 &mut selected_square,
                 &mut selected_piece,
+                &mut turn,
                 &mut pieces_query,
                 square,
                 selected_piece_entity,
             );
-            println!("Moved piece {selected_piece:?}");
         }
     }
 }
