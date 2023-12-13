@@ -1,4 +1,5 @@
 mod pieces;
+
 use pieces::*;
 
 mod board;
@@ -6,7 +7,7 @@ use board::*;
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use bevy_mod_picking::*;
+use bevy_mod_picking::prelude::*;
 
 fn main() {
     App::new()

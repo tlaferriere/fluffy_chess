@@ -1,6 +1,22 @@
-use crate::board::SelectedPiece;
+use crate::board::{move_to_square, SelectedPiece, SelectedSquare, Square};
+use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
+
+const HIGHLIGHT_TINT: Highlight<StandardMaterial> = Highlight {
+    hovered: Some(HighlightKind::new_dynamic(|matl| StandardMaterial {
+        base_color: matl.base_color + vec4(-0.2, -0.2, 0.4, 0.0),
+        ..matl.to_owned()
+    })),
+    pressed: Some(HighlightKind::new_dynamic(|matl| StandardMaterial {
+        base_color: matl.base_color + vec4(-0.3, -0.3, 0.5, 0.0),
+        ..matl.to_owned()
+    })),
+    selected: Some(HighlightKind::new_dynamic(|matl| StandardMaterial {
+        base_color: matl.base_color + vec4(-0.3, 0.2, -0.3, 0.0),
+        ..matl.to_owned()
+    })),
+};
 
 pub struct PiecesPlugin;
 impl Plugin for PiecesPlugin {
@@ -37,13 +53,7 @@ fn create_pieces(
     let white_material = materials.add(Color::rgb(1., 0.8, 0.8).into());
     let black_material = materials.add(Color::rgb(0., 0.2, 0.2).into());
 
-    let pieces_parent = commands
-        .spawn((
-            PbrBundle::default(),
-            PickableBundle::default(),
-            On::<Pointer<Select>>::run(select),
-        ))
-        .id();
+    let pieces_parent = commands.spawn((PbrBundle::default(),)).id();
 
     let white_pieces = [
         spawn_rook(
@@ -200,22 +210,37 @@ fn create_pieces(
 
 fn select(
     listener: Listener<Pointer<Select>>,
+    mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
     mut pieces_query: Query<(Entity, &mut Piece)>,
+    squares_query: Query<&Square>,
 ) {
-    // match selected_piece.entity {
-    //     None => {
-    //         selected_piece.entity = Some(listener.target);
-    //     }
-    //     Some(selected_piece_entity)
-    //         if pieces_query
-    //             .get(selected_piece_entity)
-    //             .is_ok_and(|(_, attacker)| {
-    //                 pieces_query
-    //                     .get(listener.target)
-    //                     .is_ok_and(|(_, defender)| attacker.color != defender.color)
-    //             }) => {}
-    // }
+    match selected_piece.entity {
+        None => {
+            selected_piece.entity = Some(listener.listener());
+            println!("Selected piece {selected_piece:?}");
+        }
+        Some(selected_piece_entity) => {
+            println!("Moving piece {selected_piece:?}");
+            let Ok((_, piece)) = pieces_query.get(listener.listener()) else {
+                return;
+            };
+            let Some(square) = squares_query
+                .iter()
+                .find(|square| piece.x == square.x && piece.y == square.y)
+            else {
+                return;
+            };
+            move_to_square(
+                &mut selected_square,
+                &mut selected_piece,
+                &mut pieces_query,
+                square,
+                selected_piece_entity,
+            );
+            println!("Moved piece {selected_piece:?}");
+        }
+    }
 }
 
 fn spawn_king(
@@ -237,6 +262,7 @@ fn spawn_king(
                 )),
                 ..Default::default()
             },
+            On::<Pointer<Select>>::run(select),
             Piece {
                 color: piece_color,
                 piece_type: PieceType::King,
@@ -246,26 +272,34 @@ fn spawn_king(
         ))
         // Add children to the parent
         .with_children(|parent| {
-            parent.spawn(PbrBundle {
-                mesh,
-                material: material.clone(),
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., -1.9));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+            parent.spawn((
+                PbrBundle {
+                    mesh,
+                    material: material.clone(),
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., -1.9));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
-            parent.spawn(PbrBundle {
-                mesh: mesh_cross,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., -1.9));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
+            parent.spawn((
+                PbrBundle {
+                    mesh: mesh_cross,
+                    material,
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., -1.9));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
         })
         .id()
 }
@@ -289,6 +323,7 @@ fn spawn_knight(
                 )),
                 ..Default::default()
             },
+            On::<Pointer<Select>>::run(select),
             Piece {
                 color: piece_color,
                 piece_type: PieceType::Knight,
@@ -298,26 +333,34 @@ fn spawn_knight(
         ))
         // Add children to the parent
         .with_children(|parent| {
-            parent.spawn(PbrBundle {
-                mesh: mesh_1,
-                material: material.clone(),
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., 0.9));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+            parent.spawn((
+                PbrBundle {
+                    mesh: mesh_1,
+                    material: material.clone(),
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., 0.9));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
-            parent.spawn(PbrBundle {
-                mesh: mesh_2,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., 0.9));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
+            parent.spawn((
+                PbrBundle {
+                    mesh: mesh_2,
+                    material,
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., 0.9));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
         })
         .id()
 }
@@ -339,6 +382,7 @@ fn spawn_queen(
                 )),
                 ..Default::default()
             },
+            On::<Pointer<Select>>::run(select),
             Piece {
                 color: piece_color,
                 piece_type: PieceType::Queen,
@@ -347,16 +391,20 @@ fn spawn_queen(
             },
         ))
         .with_children(|parent| {
-            parent.spawn(PbrBundle {
-                mesh,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., -0.95));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+            parent.spawn((
+                PbrBundle {
+                    mesh,
+                    material,
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., -0.95));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
         })
         .id()
 }
@@ -378,6 +426,7 @@ fn spawn_bishop(
                 )),
                 ..Default::default()
             },
+            On::<Pointer<Select>>::run(select),
             Piece {
                 color: piece_color,
                 piece_type: PieceType::Bishop,
@@ -386,16 +435,20 @@ fn spawn_bishop(
             },
         ))
         .with_children(|parent| {
-            parent.spawn(PbrBundle {
-                mesh,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.1, 0., 0.));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+            parent.spawn((
+                PbrBundle {
+                    mesh,
+                    material,
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.1, 0., 0.));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
         })
         .id()
 }
@@ -417,6 +470,7 @@ fn spawn_rook(
                 )),
                 ..Default::default()
             },
+            On::<Pointer<Select>>::run(select),
             Piece {
                 color: piece_color,
                 piece_type: PieceType::Rook,
@@ -425,16 +479,20 @@ fn spawn_rook(
             },
         ))
         .with_children(|parent| {
-            parent.spawn(PbrBundle {
-                mesh,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.1, 0., 1.8));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+            parent.spawn((
+                PbrBundle {
+                    mesh,
+                    material,
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.1, 0., 1.8));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
         })
         .id()
 }
@@ -456,6 +514,7 @@ fn spawn_pawn(
                 )),
                 ..Default::default()
             },
+            On::<Pointer<Select>>::run(select),
             Piece {
                 color: piece_color,
                 piece_type: PieceType::Pawn,
@@ -464,16 +523,20 @@ fn spawn_pawn(
             },
         ))
         .with_children(|parent| {
-            parent.spawn(PbrBundle {
-                mesh,
-                material,
-                transform: {
-                    let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., 2.6));
-                    transform.scale *= Vec3::new(0.2, 0.2, 0.2);
-                    transform
+            parent.spawn((
+                PbrBundle {
+                    mesh,
+                    material,
+                    transform: {
+                        let mut transform = Transform::from_translation(Vec3::new(-0.2, 0., 2.6));
+                        transform.scale *= Vec3::new(0.2, 0.2, 0.2);
+                        transform
+                    },
+                    ..Default::default()
                 },
-                ..Default::default()
-            });
+                PickableBundle::default(),
+                HIGHLIGHT_TINT,
+            ));
         })
         .id()
 }

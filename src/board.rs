@@ -1,4 +1,5 @@
 use crate::pieces::Piece;
+use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
 
@@ -9,20 +10,29 @@ pub struct Square {
 }
 
 #[derive(Resource, Default, Debug)]
-struct SelectedSquare {
+pub struct SelectedSquare {
     entity: Option<Entity>,
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Debug)]
 pub(crate) struct SelectedPiece {
     pub entity: Option<Entity>,
 }
 
-impl Square {
-    fn is_white(&self) -> bool {
-        (self.x + self.y + 1) % 2 == 0
-    }
-}
+const HIGHLIGHT_TINT: Highlight<StandardMaterial> = Highlight {
+    hovered: Some(HighlightKind::new_dynamic(|matl| StandardMaterial {
+        base_color: matl.base_color + vec4(-0.2, -0.2, 0.4, 0.0),
+        ..matl.to_owned()
+    })),
+    pressed: Some(HighlightKind::new_dynamic(|matl| StandardMaterial {
+        base_color: matl.base_color + vec4(-0.3, -0.3, 0.5, 0.0),
+        ..matl.to_owned()
+    })),
+    selected: Some(HighlightKind::new_dynamic(|matl| StandardMaterial {
+        base_color: matl.base_color + vec4(-0.3, 0.2, -0.3, 0.0),
+        ..matl.to_owned()
+    })),
+};
 
 pub struct BoardPlugin;
 impl Plugin for BoardPlugin {
@@ -60,6 +70,7 @@ fn create_board(
                     ..Default::default()
                 },
                 PickableBundle::default(),
+                HIGHLIGHT_TINT,
                 Square { x: i, y: j },
                 On::<Pointer<Select>>::run(select),
             ));
