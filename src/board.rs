@@ -93,6 +93,7 @@ fn select(
     };
     if let Some(selected_piece_entity) = selected_piece.entity {
         move_to_square(
+            commands,
             &mut selected_square,
             &mut selected_piece,
             &mut pieces_query,
@@ -111,6 +112,7 @@ fn select(
 }
 
 pub fn move_to_square(
+    mut commands: Commands,
     selected_square: &mut ResMut<SelectedSquare>,
     selected_piece: &mut ResMut<SelectedPiece>,
     pieces_query: &mut Query<(Entity, &mut Piece)>,
@@ -118,8 +120,26 @@ pub fn move_to_square(
     selected_piece_entity: Entity,
 ) {
     let pieces_vec = pieces_query.iter().map(|(_, piece)| *piece).collect();
+    let pieces_entity_vec: Vec<(Entity, Piece)> = pieces_query
+        .iter()
+        .map(|(entity, piece)| (entity, *piece))
+        .collect();
     if let Ok((_, mut piece)) = pieces_query.get_mut(selected_piece_entity) {
         if piece.is_move_valid((square.x, square.y), pieces_vec) {
+            // Check if a piece of the opposite color exists in this square and despawn it
+            if let Some((other_entity, other_piece)) =
+                pieces_entity_vec
+                    .iter()
+                    .find(|(other_entity, other_piece)| {
+                        other_piece.x == square.x
+                            && other_piece.y == square.y
+                            && other_piece.color != piece.color
+                    })
+            {
+                commands.entity(*other_entity).despawn_recursive()
+            }
+
+            // Move piece
             piece.x = square.x;
             piece.y = square.y;
         }

@@ -209,6 +209,7 @@ fn create_pieces(
 }
 
 fn select(
+    mut commands: Commands,
     listener: Listener<Pointer<Select>>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
@@ -232,6 +233,7 @@ fn select(
                 return;
             };
             move_to_square(
+                commands,
                 &mut selected_square,
                 &mut selected_piece,
                 &mut pieces_query,
