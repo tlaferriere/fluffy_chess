@@ -1,4 +1,5 @@
-use crate::pieces::{Piece, PieceColor};
+use crate::pieces::{Piece, PieceColor, PieceType};
+use bevy::app::AppExit;
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
@@ -93,6 +94,7 @@ fn select(
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
     mut turn: ResMut<PlayerTurn>,
+    mut exit: EventWriter<AppExit>,
     squares_query: Query<&Square>,
     mut pieces_query: Query<(Entity, &mut Piece)>,
 ) {
@@ -107,6 +109,7 @@ fn select(
             &mut selected_square,
             &mut selected_piece,
             &mut turn,
+            &mut exit,
             &mut pieces_query,
             square,
             selected_piece_entity,
@@ -127,6 +130,7 @@ pub fn move_to_square(
     selected_square: &mut ResMut<SelectedSquare>,
     selected_piece: &mut ResMut<SelectedPiece>,
     turn: &mut ResMut<PlayerTurn>,
+    exit: &mut EventWriter<AppExit>,
     pieces_query: &mut Query<(Entity, &mut Piece)>,
     square: &Square,
     selected_piece_entity: Entity,
@@ -148,6 +152,17 @@ pub fn move_to_square(
                             && other_piece.color != piece.color
                     })
             {
+                // If the king is taken, we should exit
+                if other_piece.piece_type == PieceType::King {
+                    println!(
+                        "{} won! Thanks for playing!",
+                        match turn.0 {
+                            PieceColor::White => "White",
+                            PieceColor::Black => "Black",
+                        }
+                    );
+                    exit.send(AppExit);
+                }
                 commands.entity(*other_entity).despawn_recursive()
             }
 

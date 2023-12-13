@@ -1,4 +1,5 @@
 use crate::board::{move_to_square, PlayerTurn, SelectedPiece, SelectedSquare, Square};
+use bevy::app::AppExit;
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
@@ -214,6 +215,7 @@ fn select(
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
     mut turn: ResMut<PlayerTurn>,
+    mut exit: EventWriter<AppExit>,
     mut pieces_query: Query<(Entity, &mut Piece)>,
     squares_query: Query<&Square>,
 ) {
@@ -241,6 +243,7 @@ fn select(
                 &mut selected_square,
                 &mut selected_piece,
                 &mut turn,
+                &mut exit,
                 &mut pieces_query,
                 square,
                 selected_piece_entity,
