@@ -1,13 +1,7 @@
-use crate::movement::{AttemptMove, Piece, PlayerTurn};
+use crate::movement::{AttemptMove, Piece, PlayerTurn, Square};
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
-
-#[derive(Component)]
-pub struct Square {
-    pub x: u8,
-    pub y: u8,
-}
 
 #[derive(Resource, Default, Debug)]
 pub struct SelectedSquare {

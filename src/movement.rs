@@ -1,4 +1,3 @@
-use crate::board::Square;
 use bevy::app::AppExit;
 use bevy::prelude::*;
 
@@ -260,4 +259,10 @@ impl Piece {
             }
         }
     }
+}
+
+#[derive(Component)]
+pub struct Square {
+    pub x: u8,
+    pub y: u8,
 }

@@ -1,5 +1,5 @@
-use crate::board::{SelectedPiece, SelectedSquare, Square};
-use crate::movement::{AttemptMove, Piece, PieceColor, PieceType, PlayerTurn};
+use crate::board::{SelectedPiece, SelectedSquare};
+use crate::movement::{AttemptMove, Piece, PieceColor, PieceType, PlayerTurn, Square};
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
