@@ -1,5 +1,4 @@
-use crate::pieces::{Piece, PieceColor, PieceType};
-use bevy::app::AppExit;
+use crate::movement::{AttemptMove, Piece, PlayerTurn};
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
@@ -12,20 +11,12 @@ pub struct Square {
 
 #[derive(Resource, Default, Debug)]
 pub struct SelectedSquare {
-    entity: Option<Entity>,
+    pub entity: Option<Entity>,
 }
 
 #[derive(Resource, Default, Debug)]
 pub(crate) struct SelectedPiece {
     pub entity: Option<Entity>,
-}
-
-#[derive(Resource)]
-pub(crate) struct PlayerTurn(pub(crate) PieceColor);
-impl Default for PlayerTurn {
-    fn default() -> Self {
-        Self(PieceColor::White)
-    }
 }
 
 const HIGHLIGHT_TINT: Highlight<StandardMaterial> = Highlight {
@@ -48,7 +39,6 @@ impl Plugin for BoardPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SelectedSquare>()
             .init_resource::<SelectedPiece>()
-            .init_resource::<PlayerTurn>()
             .add_systems(Startup, create_board);
     }
 }
@@ -88,15 +78,15 @@ fn create_board(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn select(
-    mut commands: Commands,
     select: Listener<Pointer<Select>>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
-    mut turn: ResMut<PlayerTurn>,
-    mut exit: EventWriter<AppExit>,
+    turn: Res<PlayerTurn>,
+    mut attempt_moves: EventWriter<AttemptMove>,
     squares_query: Query<&Square>,
-    mut pieces_query: Query<(Entity, &mut Piece)>,
+    pieces_query: Query<(Entity, &mut Piece)>,
 ) {
     // Get the square under the cursor and set it as the selected
     selected_square.entity = Some(select.target);
@@ -104,16 +94,13 @@ fn select(
         return;
     };
     if let Some(selected_piece_entity) = selected_piece.entity {
-        move_to_square(
-            commands,
-            &mut selected_square,
-            &mut selected_piece,
-            &mut turn,
-            &mut exit,
-            &mut pieces_query,
-            square,
-            selected_piece_entity,
-        );
+        attempt_moves.send(AttemptMove {
+            piece: selected_piece_entity,
+            square: select.target,
+        });
+        // Reset selection after attempting a move
+        selected_square.entity = None;
+        selected_piece.entity = None;
     } else {
         selected_piece.entity = pieces_query.iter().find_map(|(entity, piece)| {
             if piece.x == square.x && piece.y == square.y && piece.color == turn.0 {
@@ -123,59 +110,4 @@ fn select(
             }
         });
     }
-}
-
-pub fn move_to_square(
-    mut commands: Commands,
-    selected_square: &mut ResMut<SelectedSquare>,
-    selected_piece: &mut ResMut<SelectedPiece>,
-    turn: &mut ResMut<PlayerTurn>,
-    exit: &mut EventWriter<AppExit>,
-    pieces_query: &mut Query<(Entity, &mut Piece)>,
-    square: &Square,
-    selected_piece_entity: Entity,
-) {
-    let pieces_vec = pieces_query.iter().map(|(_, piece)| *piece).collect();
-    let pieces_entity_vec: Vec<(Entity, Piece)> = pieces_query
-        .iter()
-        .map(|(entity, piece)| (entity, *piece))
-        .collect();
-    if let Ok((_, mut piece)) = pieces_query.get_mut(selected_piece_entity) {
-        if piece.is_move_valid((square.x, square.y), pieces_vec) {
-            // Check if a piece of the opposite color exists in this square and despawn it
-            if let Some((other_entity, other_piece)) =
-                pieces_entity_vec
-                    .iter()
-                    .find(|(other_entity, other_piece)| {
-                        other_piece.x == square.x
-                            && other_piece.y == square.y
-                            && other_piece.color != piece.color
-                    })
-            {
-                // If the king is taken, we should exit
-                if other_piece.piece_type == PieceType::King {
-                    println!(
-                        "{} won! Thanks for playing!",
-                        match turn.0 {
-                            PieceColor::White => "White",
-                            PieceColor::Black => "Black",
-                        }
-                    );
-                    exit.send(AppExit);
-                }
-                commands.entity(*other_entity).despawn_recursive()
-            }
-
-            // Move piece
-            piece.x = square.x;
-            piece.y = square.y;
-
-            turn.0 = match turn.0 {
-                PieceColor::White => PieceColor::Black,
-                PieceColor::Black => PieceColor::White,
-            }
-        }
-    }
-    selected_square.entity = None;
-    selected_piece.entity = None;
 }

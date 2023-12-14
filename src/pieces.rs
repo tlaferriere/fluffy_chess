@@ -1,5 +1,5 @@
-use crate::board::{move_to_square, PlayerTurn, SelectedPiece, SelectedSquare, Square};
-use bevy::app::AppExit;
+use crate::board::{SelectedPiece, SelectedSquare, Square};
+use crate::movement::{AttemptMove, Piece, PieceColor, PieceType, PlayerTurn};
 use bevy::math::vec4;
 use bevy::prelude::*;
 use bevy_mod_picking::prelude::*;
@@ -209,15 +209,15 @@ fn create_pieces(
     commands.entity(pieces_parent).push_children(&black_pawns);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn select(
-    mut commands: Commands,
     listener: Listener<Pointer<Select>>,
     mut selected_square: ResMut<SelectedSquare>,
     mut selected_piece: ResMut<SelectedPiece>,
-    mut turn: ResMut<PlayerTurn>,
-    mut exit: EventWriter<AppExit>,
-    mut pieces_query: Query<(Entity, &mut Piece)>,
-    squares_query: Query<&Square>,
+    turn: Res<PlayerTurn>,
+    mut attempt_move: EventWriter<AttemptMove>,
+    pieces_query: Query<(Entity, &mut Piece)>,
+    squares_query: Query<(Entity, &Square)>,
 ) {
     match selected_piece.entity {
         None => {
@@ -232,22 +232,21 @@ fn select(
             let Ok((_, piece)) = pieces_query.get(listener.listener()) else {
                 return;
             };
-            let Some(square) = squares_query
-                .iter()
-                .find(|square| piece.x == square.x && piece.y == square.y)
-            else {
+            let Some(square) = squares_query.iter().find_map(|(entity, square)| {
+                if piece.x == square.x && piece.y == square.y {
+                    Some(entity)
+                } else {
+                    None
+                }
+            }) else {
                 return;
             };
-            move_to_square(
-                commands,
-                &mut selected_square,
-                &mut selected_piece,
-                &mut turn,
-                &mut exit,
-                &mut pieces_query,
+            attempt_move.send(AttemptMove {
+                piece: selected_piece_entity,
                 square,
-                selected_piece_entity,
-            );
+            });
+            selected_piece.entity = None;
+            selected_square.entity = None;
         }
     }
 }
@@ -550,31 +549,6 @@ fn spawn_pawn(
         .id()
 }
 
-#[derive(Component, Clone, Copy, PartialEq)]
-pub enum PieceColor {
-    White,
-    Black,
-}
-
-#[derive(Component, Clone, Copy, PartialEq)]
-pub enum PieceType {
-    King,
-    Queen,
-    Bishop,
-    Knight,
-    Rook,
-    Pawn,
-}
-
-#[derive(Clone, Copy, Component)]
-pub struct Piece {
-    pub color: PieceColor,
-    pub piece_type: PieceType,
-    // Current position
-    pub x: u8,
-    pub y: u8,
-}
-
 fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
     for (mut transform, piece) in query.iter_mut() {
         // Get the direction to move in
@@ -582,159 +556,7 @@ fn move_pieces(time: Res<Time>, mut query: Query<(&mut Transform, &Piece)>) {
 
         // Only move if the piece isn't already there (distance is big)
         if direction.length() > 0.1 {
-            transform.translation += direction.normalize() * time.delta_seconds();
-        }
-    }
-}
-
-/// Returns None if square is empty, returns a Some with the color if not
-fn color_of_square(pos: (u8, u8), pieces: &Vec<Piece>) -> Option<PieceColor> {
-    for piece in pieces {
-        if piece.x == pos.0 && piece.y == pos.1 {
-            return Some(piece.color);
-        }
-    }
-    None
-}
-
-fn is_path_empty(begin: (u8, u8), end: (u8, u8), pieces: &Vec<Piece>) -> bool {
-    // Same column
-    if begin.0 == end.0 {
-        for piece in pieces {
-            if piece.x == begin.0
-                && ((piece.y > begin.1 && piece.y < end.1)
-                    || (piece.y > end.1 && piece.y < begin.1))
-            {
-                return false;
-            }
-        }
-    }
-    // Same row
-    if begin.1 == end.1 {
-        for piece in pieces {
-            if piece.y == begin.1
-                && ((piece.x > begin.0 && piece.x < end.0)
-                    || (piece.x > end.0 && piece.x < begin.0))
-            {
-                return false;
-            }
-        }
-    }
-
-    // Diagonals
-    let x_diff = (begin.0 as i8 - end.0 as i8).abs();
-    let y_diff = (begin.1 as i8 - end.1 as i8).abs();
-    if x_diff == y_diff {
-        for i in 1..x_diff {
-            let pos = if begin.0 < end.0 && begin.1 < end.1 {
-                // left bottom - right top
-                (begin.0 + i as u8, begin.1 + i as u8)
-            } else if begin.0 < end.0 && begin.1 > end.1 {
-                // left top - right bottom
-                (begin.0 + i as u8, begin.1 - i as u8)
-            } else if begin.0 > end.0 && begin.1 < end.1 {
-                // right bottom - left top
-                (begin.0 - i as u8, begin.1 + i as u8)
-            } else {
-                // begin.0 > end.0 && begin.1 > end.1
-                // right top - left bottom
-                (begin.0 - i as u8, begin.1 - i as u8)
-            };
-
-            if color_of_square(pos, pieces).is_some() {
-                return false;
-            }
-        }
-    }
-
-    true
-}
-
-impl Piece {
-    /// Returns the possible_positions that are available
-    pub fn is_move_valid(&self, new_position: (u8, u8), pieces: Vec<Piece>) -> bool {
-        // If there's a piece of the same color in the same square, it can't move
-        let square_color = color_of_square(new_position, &pieces);
-        if square_color == Some(self.color) {
-            return false;
-        }
-
-        match self.piece_type {
-            PieceType::King => {
-                // Horizontal
-                ((self.x as i8 - new_position.0 as i8).abs() == 1
-                    && (self.y == new_position.1))
-                    // Vertical
-                    || ((self.y as i8 - new_position.1 as i8).abs() == 1
-                    && (self.x == new_position.0))
-                    // Diagonal
-                    || ((self.x as i8 - new_position.0 as i8).abs() == 1
-                    && (self.y as i8 - new_position.1 as i8).abs() == 1)
-            }
-            PieceType::Queen => {
-                is_path_empty((self.x, self.y), new_position, &pieces)
-                    && ((self.x as i8 - new_position.0 as i8).abs()
-                        == (self.y as i8 - new_position.1 as i8).abs()
-                        || ((self.x == new_position.0 && self.y != new_position.1)
-                            || (self.y == new_position.1 && self.x != new_position.0)))
-            }
-            PieceType::Bishop => {
-                is_path_empty((self.x, self.y), new_position, &pieces)
-                    && (self.x as i8 - new_position.0 as i8).abs()
-                        == (self.y as i8 - new_position.1 as i8).abs()
-            }
-            PieceType::Knight => {
-                ((self.x as i8 - new_position.0 as i8).abs() == 2
-                    && (self.y as i8 - new_position.1 as i8).abs() == 1)
-                    || ((self.x as i8 - new_position.0 as i8).abs() == 1
-                        && (self.y as i8 - new_position.1 as i8).abs() == 2)
-            }
-            PieceType::Rook => {
-                is_path_empty((self.x, self.y), new_position, &pieces)
-                    && ((self.x == new_position.0 && self.y != new_position.1)
-                        || (self.y == new_position.1 && self.x != new_position.0))
-            }
-            PieceType::Pawn => {
-                if self.color == PieceColor::White {
-                    // Normal move
-                    new_position.0 as i8 - self.x as i8 == 1
-                        && (self.y == new_position.1)
-                        && square_color.is_none()
-                    ||
-
-                    // Move 2 squares
-                     self.x == 1
-                        && new_position.0 as i8 - self.x as i8 == 2
-                        && (self.y == new_position.1)
-                        && is_path_empty((self.x, self.y), new_position, &pieces)
-                        && square_color.is_none()
-                    ||
-
-                    // Take piece
-                     new_position.0 as i8 - self.x as i8 == 1
-                        && (self.y as i8 - new_position.1 as i8).abs() == 1
-                        && square_color == Some(PieceColor::Black)
-                } else {
-                    // Normal move
-                    new_position.0 as i8 - self.x as i8 == -1
-                        && (self.y == new_position.1)
-                        && square_color.is_none()
-                    ||
-
-                    // Move 2 squares
-                    self.x == 6
-                        && new_position.0 as i8 - self.x as i8 == -2
-                        && (self.y == new_position.1)
-                        && is_path_empty((self.x, self.y), new_position, &pieces)
-                        && square_color.is_none()
-                    ||
-
-                    // Take piece
-                    new_position.0 as i8 - self.x as i8 == -1
-                        && (self.y as i8 - new_position.1 as i8).abs() == 1
-                        && square_color == Some(PieceColor::White)
-                }
-            }
+            transform.translation += direction.normalize() * 8. * time.delta_seconds();
         }
     }
 }

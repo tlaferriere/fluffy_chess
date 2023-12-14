@@ -3,8 +3,11 @@ mod pieces;
 use pieces::*;
 
 mod board;
+mod movement;
+
 use board::*;
 
+use crate::movement::MovementPlugin;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 use bevy_mod_picking::prelude::*;
@@ -26,6 +29,7 @@ fn main() {
             DefaultPickingPlugins,
             BoardPlugin,
             PiecesPlugin,
+            MovementPlugin,
         ))
         .add_systems(Startup, setup)
         .run();
