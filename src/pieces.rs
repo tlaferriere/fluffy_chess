@@ -223,7 +223,7 @@ fn select(
         None => {
             if pieces_query
                 .get(listener.listener())
-                .is_ok_and(|(_, piece)| piece.color == turn.0)
+                .is_ok_and(|(_, piece)| piece.color == turn.color)
             {
                 selected_piece.entity = Some(listener.listener());
             }

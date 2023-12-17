@@ -97,7 +97,7 @@ fn select(
         selected_piece.entity = None;
     } else {
         selected_piece.entity = pieces_query.iter().find_map(|(entity, piece)| {
-            if piece.x == square.x && piece.y == square.y && piece.color == turn.0 {
+            if piece.x == square.x && piece.y == square.y && piece.color == turn.color {
                 Some(entity)
             } else {
                 None

@@ -1,11 +1,23 @@
 use bevy::app::AppExit;
 use bevy::prelude::*;
 
+pub struct GameTimer {
+    pub reset: bool,
+    pub white_time_left: Timer,
+    pub black_time_left: Timer,
+}
+
 #[derive(Resource)]
-pub struct PlayerTurn(pub PieceColor);
+pub struct PlayerTurn {
+    pub color: PieceColor,
+    timer: Option<GameTimer>,
+}
 impl Default for PlayerTurn {
     fn default() -> Self {
-        Self(PieceColor::White)
+        Self {
+            color: PieceColor::White,
+            timer: None,
+        }
     }
 }
 
@@ -15,13 +27,20 @@ pub struct AttemptMove {
     pub square: Entity,
 }
 
+#[derive(Event, Clone, Copy)]
+pub struct Move {
+    pub piece: Piece,
+    pub square: Square,
+}
+
 pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<AttemptMove>()
+            .add_event::<Move>()
             .init_resource::<PlayerTurn>()
-            .add_systems(Update, move_to_square);
+            .add_systems(Update, (move_to_square, crate::move_camera));
     }
 }
 
@@ -30,6 +49,7 @@ pub fn move_to_square(
     mut commands: Commands,
     mut turn: ResMut<PlayerTurn>,
     mut attempted_moves: EventReader<AttemptMove>,
+    mut moves: EventWriter<Move>,
     mut exit: EventWriter<AppExit>,
     mut pieces_query: Query<(Entity, &mut Piece)>,
     squares_query: Query<&Square>,
@@ -63,7 +83,7 @@ pub fn move_to_square(
             if other_piece.piece_type == PieceType::King {
                 println!(
                     "{} won! Thanks for playing!",
-                    match turn.0 {
+                    match turn.color {
                         PieceColor::White => "White",
                         PieceColor::Black => "Black",
                     }
@@ -74,13 +94,23 @@ pub fn move_to_square(
         }
 
         // Move piece
+        let done_move = Move {
+            piece: *piece,
+            square: *square,
+        };
+
         piece.x = square.x;
         piece.y = square.y;
 
-        turn.0 = match turn.0 {
+        turn.color = match turn.color {
             PieceColor::White => PieceColor::Black,
             PieceColor::Black => PieceColor::White,
-        }
+        };
+
+        // We need the information on the origin position of the piece
+        assert!(done_move.square.x != done_move.piece.x || done_move.square.y != done_move.piece.y);
+
+        moves.send(done_move);
     }
 }
 
@@ -261,7 +291,7 @@ impl Piece {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 pub struct Square {
     pub x: u8,
     pub y: u8,
