@@ -1,3 +1,8 @@
+use bevy::prelude::*;
+use bevy::time::Stopwatch;
+use bevy::window::WindowResolution;
+use bevy_mod_picking::prelude::*;
+
 mod pieces;
 use pieces::*;
 
@@ -5,17 +10,27 @@ mod board;
 use board::*;
 
 mod movement;
+mod ui;
+
+use crate::ui::UIPlugin;
 use movement::*;
 
-use bevy::prelude::*;
-use bevy::time::Stopwatch;
-use bevy::window::WindowResolution;
-use bevy_mod_picking::prelude::*;
+mod fluffy_chess_capnp {
+    include!("../../proto/fluffy_chess_capnp.rs");
+}
+
+#[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
+enum AppState {
+    #[default]
+    MainMenu,
+    InGame,
+}
 
 fn main() {
     App::new()
         // Set antialiasing to use 4 samples
         .insert_resource(Msaa::default())
+        .add_state::<AppState>()
         // Set WindowDescriptor Resource to change title and size
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
@@ -30,6 +45,7 @@ fn main() {
             BoardPlugin,
             PiecesPlugin,
             MovementPlugin,
+            UIPlugin,
         ))
         .add_systems(Startup, setup)
         .run();

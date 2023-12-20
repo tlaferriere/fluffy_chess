@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "3d_board"
+]
+resolver = "2"
