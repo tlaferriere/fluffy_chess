@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "3d_board"
+    "3d_board",
+    "server",
 ]
 resolver = "2"

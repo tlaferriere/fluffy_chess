@@ -1,0 +1,78 @@
+syntax = "proto3";
+package fluffy_chess_proto;
+
+service MatchMaker {
+rpc findMatch (MatchConfig, Player) -> (match: Match);
+# Returns a side of a match that fits the config.
+
+    resumeMatch @1 (match_id: UInt64, player: Player) -> (match: Match);
+    # Resume a saved match based on it's ID.
+    }
+
+interface Match {
+# One side of the match. Both players will get a reference to one such side of the match.
+
+    id @0 () -> (id: UInt64);
+    # Return a unique ID to resume an unfinished match in case this connection is lost.
+
+    color @1 () -> (color: Color);
+    # Get the current side color.
+
+    move @2 (move: Move);
+# Make a move when it is your turn. Saves the move.
+    }
+
+interface Player {
+move @0 (move: Move);
+    # Notify the player when a move has been made.
+# Should only return if the move has been processed and the player is ready make a move.
+    }
+
+ MatchConfig {
+username @0: Text;
+    adversaryName: union {
+any @1: Void;
+    friends @2: Void;
+    username @3: Text;
+    }
+color: union {
+any @4: Void;
+    color @5: Color;
+    }
+timer: union {
+# Seconds
+    none @6: Void;
+    perTurn @7: UInt32;
+    perMatch @8: UInt32;
+    }
+    }
+
+enum Color {
+    white @0;
+    black @1;
+}
+
+    struct Move {
+piece @0: Piece;
+    square @1: Square;
+    }
+
+struct Piece {
+color @0: Color;
+    type @1: Type;
+    square @2: Square;
+
+    enum Type {
+king @0;
+    queen @1;
+    bishop @2;
+    knight @3;
+    rook @4;
+pawn @5;
+    }
+    }
+
+struct Square {
+x @0: UInt8;
+    y @1: UInt8;
+    }
